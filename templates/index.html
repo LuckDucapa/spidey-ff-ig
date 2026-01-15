@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spidey IG Fetcher</title>
+    <style>
+        :root { --primary: #ff0055; --bg: #000; --card: #111; --text: #fff; --gray: #666; }
+        body { font-family: sans-serif; background: var(--bg); color: var(--text); padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+        .container { width: 100%; max-width: 500px; }
+        h1 { color: var(--primary); text-transform: uppercase; text-align: center; letter-spacing: 2px; }
+        
+        .search-box { display: flex; gap: 10px; margin-bottom: 30px; }
+        input { flex: 1; padding: 12px; background: #222; border: 1px solid #333; color: #fff; border-radius: 6px; outline: none; }
+        button { padding: 12px 20px; background: var(--primary); border: none; color: white; font-weight: bold; border-radius: 6px; cursor: pointer; }
+        
+        .loader { width: 30px; height: 30px; border: 3px solid #333; border-top-color: var(--primary); border-radius: 50%; animation: spin 1s infinite; margin: 20px auto; display: none; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        /* Results */
+        .result-card { background: var(--card); border-radius: 10px; padding: 20px; border: 1px solid #333; display: none; margin-bottom: 20px; }
+        .profile-header { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; }
+        .avatar { width: 60px; height: 60px; border-radius: 50%; border: 2px solid var(--primary); object-fit: cover; }
+        .stats { display: flex; gap: 15px; font-size: 0.9em; color: var(--gray); margin-top: 5px; }
+        .stat b { color: #fff; }
+        
+        .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #222; font-size: 0.9em; }
+        .key { color: var(--gray); }
+        .val { color: #fff; text-align: right; word-break: break-word; }
+
+        .btn-dl { display: block; width: 100%; background: #fff; color: #000; text-align: center; padding: 10px 0; text-decoration: none; border-radius: 5px; margin-top: 15px; font-weight: bold; }
+        
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-top: 15px; }
+        .grid img { width: 100%; aspect-ratio: 1/1; object-fit: cover; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Insta Spy</h1>
+    <div class="search-box">
+        <input type="text" id="inp" placeholder="Username (@user) OR Reel Link">
+        <button onclick="go()">FETCH</button>
+    </div>
+
+    <div class="loader" id="loader"></div>
+    <div id="results"></div>
+</div>
+
+<script>
+    async function go() {
+        const inp = document.getElementById('inp').value.trim();
+        if(!inp) return alert("Enter something!");
+        
+        const loader = document.getElementById('loader');
+        const resDiv = document.getElementById('results');
+        
+        loader.style.display = 'block';
+        resDiv.innerHTML = '';
+
+        // AUTO DETECT LOGIC
+        let urlParam = "";
+        if(inp.includes("instagram.com")) {
+            urlParam = `url=${encodeURIComponent(inp)}`;
+        } else {
+            urlParam = `username=${inp.replace('@', '')}`;
+        }
+
+        try {
+            // Using relative path so it works on Vercel automatically
+            const req = await fetch(`/ig?${urlParam}`);
+            const data = await req.json();
+            
+            loader.style.display = 'none';
+
+            if(data.status === "Error") {
+                resDiv.innerHTML = `<div style="color:red; text-align:center">${data.message}</div>`;
+                return;
+            }
+
+            // RENDER BASED ON TYPE
+            if(data.type === "profile") {
+                renderProfile(data);
+            } else {
+                renderMedia(data);
+            }
+
+        } catch(e) {
+            loader.style.display = 'none';
+            resDiv.innerHTML = `<div style="color:red; text-align:center">Failed to fetch. Vercel IP might be blocked.</div>`;
+        }
+    }
+
+    function renderProfile(data) {
+        const p = data.profile;
+        let html = `
+        <div class="result-card" style="display:block">
+            <div class="profile-header">
+                <img src="${p.avatar}" class="avatar">
+                <div>
+                    <h3 style="margin:0">${p.name}</h3>
+                    <div style="color:var(--primary)">@${p.username}</div>
+                </div>
+            </div>
+            <div class="stats">
+                <div class="stat"><b>${p.followers}</b> Followers</div>
+                <div class="stat"><b>${p.following}</b> Following</div>
+            </div>
+            <p style="font-size:0.9em; color:#ddd">${p.bio}</p>
+            
+            <div class="grid">`;
+            
+            data.latest_posts.forEach(post => {
+                html += `<a href="${post.permalink}" target="_blank"><img src="${post.thumbnail}"></a>`;
+            });
+            
+        html += `</div></div>`;
+        document.getElementById('results').innerHTML = html;
+    }
+
+    function renderMedia(data) {
+        const d = data.media_details;
+        const dl = data.downloads;
+        let html = `
+        <div class="result-card" style="display:block">
+            <div class="row"><span class="key">Type</span> <span class="val">${d.Type}</span></div>
+            <div class="row"><span class="key">Views</span> <span class="val">${d.Views}</span></div>
+            <div class="row"><span class="key">Likes</span> <span class="val">${d.Likes}</span></div>
+            <div class="row"><span class="key">Author</span> <span class="val">${data.author_details.Username}</span></div>
+            
+            <div style="margin:15px 0; font-size:0.9em; color:#ccc; max-height:100px; overflow:auto">
+                ${data.caption.substring(0, 150)}...
+            </div>
+
+            <a href="${dl['Download URL']}" class="btn-dl" target="_blank">DOWNLOAD MEDIA</a>
+            <img src="${dl.Thumbnail}" style="width:100%; margin-top:10px; border-radius:5px; opacity:0.6">
+        </div>`;
+        document.getElementById('results').innerHTML = html;
+    }
+</script>
+
+</body>
+  </html>
