@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spidey IG Fetcher v2</title>
+    <title>Spidey IG Fetcher v3</title>
     <style>
         :root { --primary: #ff0055; --bg: #000; --card: #111; --text: #fff; --gray: #666; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
@@ -30,15 +30,15 @@
         .avatar { width: 70px; height: 70px; border-radius: 50%; border: 2px solid var(--primary); float: left; margin-right: 15px; }
         .user-header { overflow: hidden; margin-bottom: 15px; }
 
-        .tag-pill { background: #222; padding: 4px 10px; border-radius: 15px; font-size: 0.8em; margin-right: 5px; display: inline-block; border: 1px solid #333; }
-        
         pre { white-space: pre-wrap; font-family: inherit; color: #ccc; font-size: 0.9em; background: #161616; padding: 10px; border-radius: 5px;}
+        
+        .meta-tag { font-size: 0.7em; color: #444; text-align: center; margin-bottom: 20px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>Insta Spy v2</h1>
+    <h1>Insta Spy v3</h1>
     <div class="search-box">
         <input type="text" id="inp" placeholder="Username (@user) OR Reel Link">
         <button onclick="go()">FETCH</button>
@@ -70,17 +70,25 @@
                 return;
             }
 
-            if(data.type === "profile") renderProfile(data);
+            // Display Metadata Info
+            if(data.search_metadata) {
+                const m = data.search_metadata;
+                resDiv.innerHTML = `<div class="meta-tag">REQ ID: ${m.id} | TIME: ${m.request_time_taken}s</div>`;
+            }
+
+            // Check if profile wrapper exists (due to metadata nesting)
+            if(data.profile) renderProfile(data);
             else renderMedia(data);
 
         } catch(e) {
             loader.style.display = 'none';
-            resDiv.innerHTML = `<div style="color:red; text-align:center">Error fetching data. Server might be blocked.</div>`;
+            resDiv.innerHTML = `<div style="color:red; text-align:center">Error fetching data.</div>`;
+            console.error(e);
         }
     }
 
     function renderMedia(data) {
-        const d = data.media_details;
+        const d = data.reel_specs; // Updated path
         const auth = data.author_details;
         const dl = data.downloads;
         const audio = data.audio;
@@ -94,15 +102,16 @@
                 <small style="color:#777">ID: ${auth['User ID']}</small>
             </div>
 
-            <div class="section-title">Reel Specs</div>
+            <div class="section-title">Specs</div>
+            <div class="row"><span class="key">Type</span> <span class="val">${d.Type}</span></div>
             <div class="row"><span class="key">Duration</span> <span class="val">${d.Duration}</span></div>
             <div class="row"><span class="key">Dimensions</span> <span class="val">${d.Dimensions}</span></div>
-            <div class="row"><span class="key">Uploaded</span> <span class="val">${d.Date}</span></div>
+            <div class="row"><span class="key">Uploaded</span> <span class="val">${d['Upload Date']}</span></div>
 
             <div class="section-title">Engagement</div>
-            <div class="row"><span class="key">Views</span> <span class="val">${d.Views}</span></div>
-            <div class="row"><span class="key">Likes</span> <span class="val">${d.Likes}</span></div>
-            <div class="row"><span class="key">Comments</span> <span class="val">${d.Comments}</span></div>
+            <div class="row"><span class="key">Views</span> <span class="val">${data.engagement.Views}</span></div>
+            <div class="row"><span class="key">Likes</span> <span class="val">${data.engagement.Likes}</span></div>
+            <div class="row"><span class="key">Comments</span> <span class="val">${data.engagement.Comments}</span></div>
 
             <div class="section-title">Audio Info</div>
             <div class="row"><span class="key">Song</span> <span class="val">${audio.song_name || 'N/A'}</span></div>
@@ -114,11 +123,10 @@
             <a href="${dl['Download URL']}" class="btn-dl" target="_blank">DOWNLOAD MEDIA</a>
             <img src="${dl.Thumbnail}" style="width:100%; margin-top:10px; border-radius:5px; opacity:0.6">
         </div>`;
-        document.getElementById('results').innerHTML = html;
+        document.getElementById('results').innerHTML += html;
     }
 
     function renderProfile(data) {
-        // Simple profile render logic (can be expanded if needed)
         const p = data.profile;
         let html = `
         <div class="result-card">
@@ -128,14 +136,26 @@
             
             <div class="row" style="margin-top:20px"><span class="key">Followers</span> <span class="val">${p.followers}</span></div>
             <div class="row"><span class="key">Following</span> <span class="val">${p.following}</span></div>
-            <div class="row"><span class="key">Posts</span> <span class="val">${p.posts_count}</span></div>
+            <div class="row"><span class="key">Posts</span> <span class="val">${p.posts}</span></div>
             
             <div class="section-title">Bio</div>
             <pre>${p.bio}</pre>
             
             ${p.bio_links.map(l => `<div class="row"><span class="key">${l.title || 'Link'}</span> <a href="${l.url}" class="val" style="color:var(--primary)" target="_blank">Open</a></div>`).join('')}
         </div>`;
-        document.getElementById('results').innerHTML = html;
+        
+        // Render Recent Posts
+        html += `<div class="section-title" style="text-align:center">LATEST POSTS</div>`;
+        data.posts.forEach(post => {
+           html += `<div class="result-card">
+              <div class="row"><span class="key">Date</span> <span class="val">${post.iso_date}</span></div>
+              <div class="row"><span class="key">Type</span> <span class="val">${post.type}</span></div>
+              <a href="${post.link}" class="btn-dl" target="_blank">View / Download</a>
+              <img src="${post.thumbnail}" style="width:100%; border-radius:5px; margin-top:5px">
+           </div>`; 
+        });
+
+        document.getElementById('results').innerHTML += html;
     }
 </script>
 </body>
