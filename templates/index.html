@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spidey IG Fetcher</title>
+    <title>Spidey IG Fetcher v2</title>
     <style>
         :root { --primary: #ff0055; --bg: #000; --card: #111; --text: #fff; --gray: #666; }
-        body { font-family: sans-serif; background: var(--bg); color: var(--text); padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
-        .container { width: 100%; max-width: 500px; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+        .container { width: 100%; max-width: 600px; }
         h1 { color: var(--primary); text-transform: uppercase; text-align: center; letter-spacing: 2px; }
         
         .search-box { display: flex; gap: 10px; margin-bottom: 30px; }
@@ -17,27 +17,28 @@
         .loader { width: 30px; height: 30px; border: 3px solid #333; border-top-color: var(--primary); border-radius: 50%; animation: spin 1s infinite; margin: 20px auto; display: none; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
 
-        /* Results */
-        .result-card { background: var(--card); border-radius: 10px; padding: 20px; border: 1px solid #333; display: none; margin-bottom: 20px; }
-        .profile-header { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; }
-        .avatar { width: 60px; height: 60px; border-radius: 50%; border: 2px solid var(--primary); object-fit: cover; }
-        .stats { display: flex; gap: 15px; font-size: 0.9em; color: var(--gray); margin-top: 5px; }
-        .stat b { color: #fff; }
+        .result-card { background: var(--card); border-radius: 10px; padding: 20px; border: 1px solid #222; margin-bottom: 20px; }
         
-        .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #222; font-size: 0.9em; }
+        .section-title { color: var(--primary); font-size: 0.85em; font-weight: bold; margin-top: 15px; margin-bottom: 5px; text-transform: uppercase; border-bottom: 1px solid #333; padding-bottom: 5px; }
+        
+        .row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 0.9em; }
         .key { color: var(--gray); }
-        .val { color: #fff; text-align: right; word-break: break-word; }
+        .val { color: #fff; text-align: right; word-break: break-word; font-weight: 500;}
 
-        .btn-dl { display: block; width: 100%; background: #fff; color: #000; text-align: center; padding: 10px 0; text-decoration: none; border-radius: 5px; margin-top: 15px; font-weight: bold; }
+        .btn-dl { display: block; width: 100%; background: #fff; color: #000; text-align: center; padding: 12px 0; text-decoration: none; border-radius: 5px; margin-top: 20px; font-weight: bold; }
         
-        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-top: 15px; }
-        .grid img { width: 100%; aspect-ratio: 1/1; object-fit: cover; border-radius: 4px; }
+        .avatar { width: 70px; height: 70px; border-radius: 50%; border: 2px solid var(--primary); float: left; margin-right: 15px; }
+        .user-header { overflow: hidden; margin-bottom: 15px; }
+
+        .tag-pill { background: #222; padding: 4px 10px; border-radius: 15px; font-size: 0.8em; margin-right: 5px; display: inline-block; border: 1px solid #333; }
+        
+        pre { white-space: pre-wrap; font-family: inherit; color: #ccc; font-size: 0.9em; background: #161616; padding: 10px; border-radius: 5px;}
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>Insta Spy</h1>
+    <h1>Insta Spy v2</h1>
     <div class="search-box">
         <input type="text" id="inp" placeholder="Username (@user) OR Reel Link">
         <button onclick="go()">FETCH</button>
@@ -50,27 +51,18 @@
 <script>
     async function go() {
         const inp = document.getElementById('inp').value.trim();
-        if(!inp) return alert("Enter something!");
-        
-        const loader = document.getElementById('loader');
         const resDiv = document.getElementById('results');
+        const loader = document.getElementById('loader');
         
-        loader.style.display = 'block';
+        if(!inp) return;
         resDiv.innerHTML = '';
+        loader.style.display = 'block';
 
-        // AUTO DETECT LOGIC
-        let urlParam = "";
-        if(inp.includes("instagram.com")) {
-            urlParam = `url=${encodeURIComponent(inp)}`;
-        } else {
-            urlParam = `username=${inp.replace('@', '')}`;
-        }
+        let urlParam = inp.includes("instagram.com") ? `url=${encodeURIComponent(inp)}` : `username=${inp.replace('@', '')}`;
 
         try {
-            // Using relative path so it works on Vercel automatically
             const req = await fetch(`/ig?${urlParam}`);
             const data = await req.json();
-            
             loader.style.display = 'none';
 
             if(data.status === "Error") {
@@ -78,66 +70,73 @@
                 return;
             }
 
-            // RENDER BASED ON TYPE
-            if(data.type === "profile") {
-                renderProfile(data);
-            } else {
-                renderMedia(data);
-            }
+            if(data.type === "profile") renderProfile(data);
+            else renderMedia(data);
 
         } catch(e) {
             loader.style.display = 'none';
-            resDiv.innerHTML = `<div style="color:red; text-align:center">Failed to fetch. Vercel IP might be blocked.</div>`;
+            resDiv.innerHTML = `<div style="color:red; text-align:center">Error fetching data. Server might be blocked.</div>`;
         }
-    }
-
-    function renderProfile(data) {
-        const p = data.profile;
-        let html = `
-        <div class="result-card" style="display:block">
-            <div class="profile-header">
-                <img src="${p.avatar}" class="avatar">
-                <div>
-                    <h3 style="margin:0">${p.name}</h3>
-                    <div style="color:var(--primary)">@${p.username}</div>
-                </div>
-            </div>
-            <div class="stats">
-                <div class="stat"><b>${p.followers}</b> Followers</div>
-                <div class="stat"><b>${p.following}</b> Following</div>
-            </div>
-            <p style="font-size:0.9em; color:#ddd">${p.bio}</p>
-            
-            <div class="grid">`;
-            
-            data.latest_posts.forEach(post => {
-                html += `<a href="${post.permalink}" target="_blank"><img src="${post.thumbnail}"></a>`;
-            });
-            
-        html += `</div></div>`;
-        document.getElementById('results').innerHTML = html;
     }
 
     function renderMedia(data) {
         const d = data.media_details;
+        const auth = data.author_details;
         const dl = data.downloads;
+        const audio = data.audio;
+        
         let html = `
-        <div class="result-card" style="display:block">
-            <div class="row"><span class="key">Type</span> <span class="val">${d.Type}</span></div>
+        <div class="result-card">
+            <div class="user-header">
+                <img src="${auth['HD Avatar']}" class="avatar">
+                <h3>${auth['Full Name']}</h3>
+                <div style="color:var(--primary)">${auth.Username}</div>
+                <small style="color:#777">ID: ${auth['User ID']}</small>
+            </div>
+
+            <div class="section-title">Reel Specs</div>
+            <div class="row"><span class="key">Duration</span> <span class="val">${d.Duration}</span></div>
+            <div class="row"><span class="key">Dimensions</span> <span class="val">${d.Dimensions}</span></div>
+            <div class="row"><span class="key">Uploaded</span> <span class="val">${d.Date}</span></div>
+
+            <div class="section-title">Engagement</div>
             <div class="row"><span class="key">Views</span> <span class="val">${d.Views}</span></div>
             <div class="row"><span class="key">Likes</span> <span class="val">${d.Likes}</span></div>
-            <div class="row"><span class="key">Author</span> <span class="val">${data.author_details.Username}</span></div>
-            
-            <div style="margin:15px 0; font-size:0.9em; color:#ccc; max-height:100px; overflow:auto">
-                ${data.caption.substring(0, 150)}...
-            </div>
+            <div class="row"><span class="key">Comments</span> <span class="val">${d.Comments}</span></div>
+
+            <div class="section-title">Audio Info</div>
+            <div class="row"><span class="key">Song</span> <span class="val">${audio.song_name || 'N/A'}</span></div>
+            <div class="row"><span class="key">Artist</span> <span class="val">${audio.artist_name || 'N/A'}</span></div>
+
+            <div class="section-title">Caption</div>
+            <pre>${data.caption}</pre>
 
             <a href="${dl['Download URL']}" class="btn-dl" target="_blank">DOWNLOAD MEDIA</a>
             <img src="${dl.Thumbnail}" style="width:100%; margin-top:10px; border-radius:5px; opacity:0.6">
         </div>`;
         document.getElementById('results').innerHTML = html;
     }
-</script>
 
+    function renderProfile(data) {
+        // Simple profile render logic (can be expanded if needed)
+        const p = data.profile;
+        let html = `
+        <div class="result-card">
+            <img src="${p.avatar_hd}" style="width:100px; height:100px; border-radius:50%; margin:0 auto; display:block; border:3px solid var(--primary)">
+            <h2 style="text-align:center">${p.name}</h2>
+            <div style="text-align:center; color:var(--gray)">@${p.username}</div>
+            
+            <div class="row" style="margin-top:20px"><span class="key">Followers</span> <span class="val">${p.followers}</span></div>
+            <div class="row"><span class="key">Following</span> <span class="val">${p.following}</span></div>
+            <div class="row"><span class="key">Posts</span> <span class="val">${p.posts_count}</span></div>
+            
+            <div class="section-title">Bio</div>
+            <pre>${p.bio}</pre>
+            
+            ${p.bio_links.map(l => `<div class="row"><span class="key">${l.title || 'Link'}</span> <a href="${l.url}" class="val" style="color:var(--primary)" target="_blank">Open</a></div>`).join('')}
+        </div>`;
+        document.getElementById('results').innerHTML = html;
+    }
+</script>
 </body>
-  </html>
+</html>
